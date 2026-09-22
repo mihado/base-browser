@@ -97,6 +97,21 @@ Rules that keep 20 worktrees honest:
    to loopback, so frameworks still need it in `allowedHosts`; binding
    localhost exempts nothing here.
 
+## Client layers
+
+The pool serves browsers; what drives them stratifies by need, fastest first:
+
+1. **Deterministic Playwright** (`playwright-core`, `examples/verify.mjs`) —
+   known-assertion gates. Zero model latency, zero token cost. Default choice.
+2. **jev loop** (later) — planner LLM + ~300 ms typed decisions on DOM state
+   for fast agentic flows. A local decision model removes the paid API.
+3. **Midscene** (contender, MIT) — vision-driven `aiAct`/`aiAssert` on an
+   *existing* Playwright page, for visual assertions and flows selectors
+   can't reach (canvas, icon-only buttons, cross-origin iframes). It's a
+   generative-VLM call per step, so slower and metered: scoped to where DOM
+   fails, not a replacement for layer 1. Model TBD — mimo-compat to verify
+   at wire time; price one real gate run before adopting.
+
 ## Open questions (TBD)
 
 - Steel self-host auth model — the upstream compose shows no token; confirm
