@@ -33,7 +33,7 @@ Pin the `playwright-core` version with the server image tag; bump as one change.
 
 ## Worktree routing (Traefik)
 
-Verifiers reach worktrees through per-host Traefik, never directly. Each dev server stays on `127.0.0.1`; Traefik terminates TLS at the VLAN edge and proxies to loopback. Certs (public wildcard via DNS-01) and wildcard DNS (Unifi) are solved outside this repo — assumed present.
+Verifiers reach worktrees through per-host Traefik, never directly. Each dev server stays on `127.0.0.1`; Traefik terminates TLS at the VLAN edge and proxies to loopback. Certs (public wildcard via DNS-01) and wildcard DNS (UniFi) are solved outside this repo — assumed present.
 
 - **One file per worktree** in Traefik's watched directory (`/routes/<slug>.yml`), write-temp-then-rename, deleted on teardown. Never a shared file — no merge conflicts by construction.
 - **Names derive from worktree identity**, sanitized to `[a-z0-9-]`. Router, service, and hostname all come from the same slug, so the verifier reconstructs `https://<slug>.dev.<domain>` with zero discovery.
@@ -64,7 +64,7 @@ Rules that keep 20 worktrees honest:
 The pool serves browsers; what drives them stratifies by need, fastest first:
 
 1. **Deterministic Playwright** (`playwright-core`, `examples/verify.mjs`) — known-assertion gates. Zero model latency, zero token cost. Default choice.
-2. **jev loop** (later, [jev-browser](https://github.com/Ying-Kai-Liao/jev-browser) blueprint) — planner LLM + ~300 ms typed decisions on DOM state for fast agentic flows. A local decision model removes the paid API.
+2. **Jev loop** (later, [jev-browser](https://github.com/Ying-Kai-Liao/jev-browser) blueprint) — planner LLM + ~300 ms typed decisions on DOM state for fast agentic flows. A local decision model removes the paid API.
 3. **[midscene](https://github.com/web-infra-dev/midscene)** (contender, MIT) — vision-driven actions and assertions on the same page, scoped to where DOM fails. Assessment in references.md.
 
 ## Open questions (TBD)
