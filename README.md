@@ -8,7 +8,7 @@ Status: **WIP design.** Decisions below are recorded; the service is not yet dep
 
 - **Engine: Chromium, Playwright-driven.** Firefox deferred — gates verify our own work, where a second engine buys nothing. (If that changes, Playwright's own Firefox build through this same pattern, not a second platform.)
 - **Server: [Steel self-host](https://github.com/steel-dev/steel-browser)** (`ghcr.io/steel-dev/steel-browser-api`), Apache-2.0. CDP-compatible WebSocket; any Playwright/puppeteer-core client.
-- **Topology: one VM on the Xeon Proxmox host, dev VLAN.** 8 vCPU, 16 GB RAM, thin disk (stateless), static IP, start-at-boot, no ballooning. The gate must never share fate with a workstation or a box that powers down.
+- **Topology: one dedicated, always-on VM on the private network.** 8 vCPU, 16 GB RAM, thin disk (stateless), static IP, start-at-boot, no ballooning. The gate must never share fate with a workstation or a box that powers down.
 - **Clients: [`playwright-core`](https://github.com/microsoft/playwright) only** — protocol client, never `playwright install`. Endpoint from env, one context per run, `close()` in a `finally`, backoff on 429/503.
 
 ## Sizing
@@ -33,7 +33,7 @@ Pin the `playwright-core` version with the server image tag; bump as one change.
 
 ## Worktree routing (Traefik)
 
-Verifiers reach worktrees through per-host Traefik, never directly. Each dev server stays on `127.0.0.1`; Traefik terminates TLS at the VLAN edge and proxies to loopback. Certs (public wildcard via DNS-01) and wildcard DNS (UniFi) are solved outside this repo — assumed present.
+Verifiers reach worktrees through per-host Traefik, never directly. Each dev server stays on `127.0.0.1`; Traefik terminates TLS at the network edge and proxies to loopback. Certs (public wildcard via DNS-01) and wildcard DNS are solved outside this repo — assumed present.
 
 - **One file per worktree** in Traefik's watched directory (`/routes/<slug>.yml`), write-temp-then-rename, deleted on teardown. Never a shared file — no merge conflicts by construction.
 - **Names derive from worktree identity**, sanitized to `[a-z0-9-]`. Router, service, and hostname all come from the same slug, so the verifier reconstructs `https://<slug>.dev.<domain>` with zero discovery.
@@ -69,6 +69,6 @@ The pool serves browsers; what drives them stratifies by need, fastest first:
 
 ## Open questions (TBD)
 
-- Steel self-host auth model — the upstream compose shows no token; confirm before exposing beyond the dev VLAN (VLAN scoping is the auth until then).
+- Steel self-host auth model — the upstream compose shows no token; confirm before exposing beyond the private network (network scoping is the auth until then).
 - Steel session/timeout/concurrency knobs and observability endpoints (equivalents of `/pressure`, `/metrics`).
 - Confirm image tag exists on first `docker compose pull` (fails fast, not silent).

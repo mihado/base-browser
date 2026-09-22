@@ -7,9 +7,9 @@ services:
     image: ghcr.io/steel-dev/steel-browser-api:v0.5.4-beta
     restart: unless-stopped
     ports:
-      # Bind to the VM's dev-VLAN IP — the endpoint every worktree points at.
+      # Bind to the host's private-network IP — the endpoint every worktree points at.
       # TBD: Steel self-host auth model (upstream shows no token); until
-      # confirmed, VLAN scoping is the auth. Do not publish 0.0.0.0.
+      # confirmed, network scoping is the auth. Do not publish 0.0.0.0.
       - "${BROWSER_HOST:-127.0.0.1}:3000:3000" # Steel API + browser WebSocket
       - "${BROWSER_HOST:-127.0.0.1}:9223:9223" # CDP redirect
     # Chrome renderer memory; Docker's 64MB default crashes it under load.

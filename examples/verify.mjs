@@ -1,5 +1,5 @@
 // Minimal verifier client: playwright-core only, no browser download.
-//   BROWSER_WS_URL=ws://<vlan-ip>:3000 node examples/verify.mjs <url>
+//   BROWSER_WS_URL=ws://<host>:3000 node examples/verify.mjs <url>
 import { chromium } from "playwright-core";
 
 const [url] = process.argv.slice(2);
