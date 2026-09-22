@@ -8,7 +8,7 @@ Status: **WIP design.** Decisions below are recorded; the service is not yet dep
 
 - **Engine: Chromium, Playwright-driven.** Firefox deferred — gates verify our own work, where a second engine buys nothing. (If that changes, Playwright's own Firefox build through this same pattern, not a second platform.)
 - **Server: [Steel self-host](https://github.com/steel-dev/steel-browser)** (`ghcr.io/steel-dev/steel-browser-api`), Apache-2.0. CDP-compatible WebSocket; any Playwright/puppeteer-core client.
-- **Topology: one dedicated, always-on VM on the private network.** 8 vCPU, 16 GB RAM, thin disk (stateless), static IP, start-at-boot, no ballooning. The gate must never share fate with a workstation or a box that powers down.
+- **Topology: one dedicated, always-on VM on the private network.** 8 vCPU, 16 GB RAM, thin disk (stateless), static IP, start-at-boot, no ballooning. The gate must never share fate with a workstation or a box that powers down. It shares its host with the execution plane and initiates outbound HTTPS to tested URLs only.
 - **Clients: [`playwright-core`](https://github.com/microsoft/playwright) only** — protocol client, never `playwright install`. Endpoint from env, one context per run, `close()` in a `finally`, backoff on 429/503.
 
 ## Sizing
