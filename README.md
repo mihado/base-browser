@@ -14,7 +14,7 @@ Sibling to [base-runner](https://github.com/mihado/base-runner): runners execute
   - **Gate** — verifies internal work: allowlisted internal origins through the edge (the dev zone), nothing else. Consumers: verifier gates.
   - **Lab** — renders the open web and drives staging smoke, browser-use and agent-harness trials, scraping, and R&D; it hosts the authorized red-team tools. Egress: the public web plus the edge with per-purpose scoped tokens; never core-direct.
   - Invariants for every instance: a dedicated, always-on VM (never a workstation, never a box that powers down), thin/stateless disk, start-at-boot, no ballooning, outbound-only except the client port. Instances never share a VM, a network zone, or a profile.
-  - Placement specifics — VLANs, hosts, token names — live in the private conducto inventory, never in this repo.
+  - Placement specifics — VLANs, hosts, token names — live in the private conducta inventory, never in this repo.
 - **Clients: [`playwright-core`](https://github.com/microsoft/playwright) only** — protocol client, never `playwright install`. Endpoint from env, one context per run, no persistent profiles, `close()` in a `finally`, backoff on 429/503. Credentials are added by the client's own HTTP layer at request time: never stored in the browser, never reachable by page JS.
 
 ## Uses
