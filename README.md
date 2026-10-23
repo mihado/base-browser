@@ -7,30 +7,32 @@ Status: **WIP design.** Decisions below are recorded; the service is not yet dep
 ## Decisions
 
 - **Engine: Chromium, Playwright-driven.** Firefox deferred — gates verify our own work, where a second engine buys nothing. (If that changes, Playwright's own Firefox build through this same pattern, not a second platform.)
-- **Server: under revision.** [Steel self-host](https://github.com/steel-dev/steel-browser) (`ghcr.io/steel-dev/steel-browser-api`, Apache-2.0) is single-session by design — upstream's own MCP server README says so (`steel-mcp-server/README.md:57`) — and three parallel sessions killed the process in 3 of 3 runs (`TargetCloseError`). Nothing is swapped silently: the maintainer decides. Evidence: [survey/2026-10-23.md](survey/2026-10-23.md).
-- **Leading candidate: our own small pool of official Playwright Chromium containers.** One container per session, recycled after each run, `storageState` per session, Steel's anti-bot launch flags copied across (mainstream Chrome UA, `--disable-blink-features=AutomationControlled`, no `--enable-automation`, headful under Xvfb). Playwright covers every Steel session feature we use; the pool — lease, health, recycle, limits, reaping — is the work, and no vendor ships it.
+- **Server: a pool of official Playwright Chromium containers** (`mcr.microsoft.com/playwright`, pinned) — **one container per session, recycled after each session.** A small orchestrator of ours handles lease, health, recycle, limits and reaping; no vendor ships that. Session state is saved and restored with `storageState`, a proxy is set per context, and Steel's anti-bot defaults are copied across (a browser UA, `--disable-blink-features=AutomationControlled`, no `--enable-automation`, headful under Xvfb where a site needs it).
+- **Escalation for hostile sites: [camofox-browser](https://github.com/jo-inc/camofox-browser)** (MIT; Camoufox/Firefox behind REST) — for a source that only yields to a Firefox-class fingerprint. Run it with `CAMOFOX_ACCESS_KEY` set and its crash telemetry off (`CAMOFOX_CRASH_REPORT_ENABLED=false`). Verdict: references.md.
+- **Steel rejected: single-session self-host.** Three parallel sessions kill the process and the API has no auth. Evidence, and the Playwright calls that replace its session API: [survey/2026-10-23.md](survey/2026-10-23.md).
+- **Principle: reliable, boring primitives composed to do the work; a tool earns its place by evidence.**
 - **Topology: one dedicated, always-on VM on the private network.** 8 vCPU, 16 GB RAM, thin disk (stateless), static IP, start-at-boot, no ballooning. The gate must never share fate with a workstation or a box that powers down. It shares its host with the execution plane and initiates outbound HTTPS to tested URLs only.
 - **Clients: [`playwright-core`](https://github.com/microsoft/playwright) only** — protocol client, never `playwright install`. Endpoint from env, one context per run, `close()` in a `finally`, backoff on 429/503.
 
 ## Sizing
 
-**TBD — do not size against the old figure.** "20 concurrent sessions ≈ 6–10 GB" assumed one Steel process, and one Steel process serves one session: it dies at three, so that number was never real. The pool's shape gets set by measuring one Playwright Chromium container per session — memory per session, cold-start and recycle cost — then sizing the VM against a measured peak. What survives regardless: `CONCURRENT`-style depth plus a deep queue absorbs the thundering herd (N worktrees verifying at once); clients treat 429/503 as retry-with-backoff, never as gate failure; `TIMEOUT` kills leaked sessions, `finally`-close is the plan, timeout the backstop.
+**TBD — measure per-container CPU/RAM and recycle time first.** The old "20 concurrent sessions ≈ 6–10 GB" assumed one Steel process, which serves one session and dies at three; ignore it. Size the VM against a measured peak instead. What holds regardless: `CONCURRENT`-style depth plus a deep queue absorbs the thundering herd (N worktrees verifying at once); clients treat 429/503 as retry-with-backoff, never as gate failure; `TIMEOUT` kills leaked sessions, `finally`-close is the plan, timeout the backstop.
 
 ## Client contract
 
 ```js
 import { chromium } from "playwright-core"; // client only, no browser download
-const browser = await chromium.connectOverCDP(process.env.BROWSER_WS_URL);
+const browser = await chromium.connect(process.env.BROWSER_WS_URL);
 const context = await browser.newContext(); // fresh profile per run
 try {
   const page = await context.newPage();
   // ... verifier assertions ...
 } finally {
-  await browser.close(); // frees the session; shared browser keeps running
+  await browser.close(); // ends the session; the orchestrator recycles the container
 }
 ```
 
-Pin the `playwright-core` version with the server image tag; bump as one change.
+The orchestrator hands out the `wsEndpoint` of a `launchServer` inside the leased container, so `connect()` is the default path and the client/image version pin is what keeps it valid. A container that also exposes CDP is reachable with `connectOverCDP()` — that is the path `chrome-devtools-mcp --browserUrl` takes for live inspection. Pin the `playwright-core` version with the server image tag; bump as one change.
 
 ## Worktree routing (Traefik)
 
@@ -70,7 +72,7 @@ The pool serves browsers; what drives them stratifies by need, fastest first:
 
 ## Open questions (TBD)
 
-- Peak concurrency CI and agents must sustain — the number the pool gets sized and capped against. Steel failed at 3; ours has to beat a measured figure, not a guess.
-- Whether a live viewer is needed. Steel ships one; Playwright has no built-in equivalent, so a session a human can watch means headful under Xvfb, a CDP screencast, or video and trace after the fact.
-- Recycle cost per session — container restart versus context reset, measured, before the pool's shape is pinned.
-- Confirm image tag exists on first `docker compose pull` (fails fast, not silent).
+- Peak concurrency CI and agents must sustain — what the pool gets sized and capped against.
+- Whether a live viewer is needed. Playwright has none built in, so a session a human can watch means headful under Xvfb, a CDP screencast, or video and trace after the fact.
+- Recycle cost per session — cold container start against context reset, measured before the recycle policy is fixed.
+- Where the orchestrator lives: on the pool VM, or with the execution plane that already holds the queue.

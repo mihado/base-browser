@@ -1,9 +1,8 @@
 name: base-browser
 
 # Shared Chromium pool for the dev network (see README). Steel self-host,
-# Apache-2.0. This VM runs nothing else.
-# Under revision: the Steel image is single-session — three parallel sessions
-# kill it — so the server choice is unresolved. See survey/2026-10-23.md.
+# Apache-2.0. To be replaced by the Playwright Chromium pool; see README.
+# This VM runs nothing else.
 services:
   api:
     image: ghcr.io/steel-dev/steel-browser-api:v0.5.4-beta
