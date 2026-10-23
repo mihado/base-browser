@@ -2,18 +2,19 @@
 
 One warm Chromium pool for the dev network. Every project and worktree requests browsers here instead of installing headless Chrome locally — verifier gates get a browser with zero local setup.
 
-Status: **WIP design.** Decisions below are recorded; the service is not yet deployed. Open questions are marked `TBD`. Tools assessed along the way — adopted, contenders, rejected with reasons — live in references.md; read it before proposing a different one.
+Status: **WIP design.** Decisions below are recorded; the service is not yet deployed. Open questions are marked `TBD`. Tools assessed along the way — adopted, contenders, rejected with reasons — live in references.md; read it before proposing a different one. The measurements behind them: [survey/2026-10-23.md](survey/2026-10-23.md).
 
 ## Decisions
 
 - **Engine: Chromium, Playwright-driven.** Firefox deferred — gates verify our own work, where a second engine buys nothing. (If that changes, Playwright's own Firefox build through this same pattern, not a second platform.)
-- **Server: [Steel self-host](https://github.com/steel-dev/steel-browser)** (`ghcr.io/steel-dev/steel-browser-api`), Apache-2.0. CDP-compatible WebSocket; any Playwright/puppeteer-core client.
+- **Server: under revision.** [Steel self-host](https://github.com/steel-dev/steel-browser) (`ghcr.io/steel-dev/steel-browser-api`, Apache-2.0) is single-session by design — upstream's own MCP server README says so (`steel-mcp-server/README.md:57`) — and three parallel sessions killed the process in 3 of 3 runs (`TargetCloseError`). Nothing is swapped silently: the maintainer decides. Evidence: [survey/2026-10-23.md](survey/2026-10-23.md).
+- **Leading candidate: our own small pool of official Playwright Chromium containers.** One container per session, recycled after each run, `storageState` per session, Steel's anti-bot launch flags copied across (mainstream Chrome UA, `--disable-blink-features=AutomationControlled`, no `--enable-automation`, headful under Xvfb). Playwright covers every Steel session feature we use; the pool — lease, health, recycle, limits, reaping — is the work, and no vendor ships it.
 - **Topology: one dedicated, always-on VM on the private network.** 8 vCPU, 16 GB RAM, thin disk (stateless), static IP, start-at-boot, no ballooning. The gate must never share fate with a workstation or a box that powers down. It shares its host with the execution plane and initiates outbound HTTPS to tested URLs only.
 - **Clients: [`playwright-core`](https://github.com/microsoft/playwright) only** — protocol client, never `playwright install`. Endpoint from env, one context per run, `close()` in a `finally`, backoff on 429/503.
 
 ## Sizing
 
-20 concurrent sessions ≈ 6–10 GB RAM — headroom is ample on this host. `CONCURRENT`-style depth plus a deep queue absorbs the thundering herd (N worktrees verifying at once); clients treat 429/503 as retry-with-backoff, never as gate failure. `TIMEOUT` kills leaked sessions; `finally`-close is the plan, timeout the backstop.
+**TBD — do not size against the old figure.** "20 concurrent sessions ≈ 6–10 GB" assumed one Steel process, and one Steel process serves one session: it dies at three, so that number was never real. The pool's shape gets set by measuring one Playwright Chromium container per session — memory per session, cold-start and recycle cost — then sizing the VM against a measured peak. What survives regardless: `CONCURRENT`-style depth plus a deep queue absorbs the thundering herd (N worktrees verifying at once); clients treat 429/503 as retry-with-backoff, never as gate failure; `TIMEOUT` kills leaked sessions, `finally`-close is the plan, timeout the backstop.
 
 ## Client contract
 
@@ -69,6 +70,7 @@ The pool serves browsers; what drives them stratifies by need, fastest first:
 
 ## Open questions (TBD)
 
-- Steel self-host auth model — the upstream compose shows no token; confirm before exposing beyond the private network (network scoping is the auth until then).
-- Steel session/timeout/concurrency knobs and observability endpoints (equivalents of `/pressure`, `/metrics`).
+- Peak concurrency CI and agents must sustain — the number the pool gets sized and capped against. Steel failed at 3; ours has to beat a measured figure, not a guess.
+- Whether a live viewer is needed. Steel ships one; Playwright has no built-in equivalent, so a session a human can watch means headful under Xvfb, a CDP screencast, or video and trace after the fact.
+- Recycle cost per session — container restart versus context reset, measured, before the pool's shape is pinned.
 - Confirm image tag exists on first `docker compose pull` (fails fast, not silent).
